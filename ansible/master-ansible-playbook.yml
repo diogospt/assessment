@@ -1,0 +1,99 @@
+---
+- name: Configure Kubernetes Master Nodes
+  hosts: localhost
+  connection: local
+  become: yes
+  tasks:
+    - name: Download etcd binaries
+      ansible.builtin.get_url:
+        url: https://github.com/etcd-io/etcd/releases/download/v3.5.8/etcd-v3.5.8-linux-amd64.tar.gz
+        dest: /home/dsantos/
+        mode: '0777'
+    - name: create directory
+      file:
+        path: /home/dsantos/etcd-v3.5.8-linux-amd64
+        state: directory
+    - name: Extract foo.tgz into /var/lib/foo
+      ansible.builtin.unarchive:
+        src: /home/dsantos/etcd-v3.5.8-linux-amd64.tar.gz
+        dest: /home/dsantos/
+    - name: Copy files from foo to bar
+      copy: src=/home/dsantos/etcd-v3.5.8-linux-amd64/ dest=/usr/local/bin/
+
+    - name: Create and change permission on /var/lib/etcd directory
+      file:
+        path: /var/lib/etcd
+        state: directory
+        owner: root
+        group: root
+        mode: 0777
+    - name: Create folder /etc/etcd
+      file:
+        path: /etc/etcd
+        state: directory
+        owner: root
+        group: root
+    - name: copy multiple items
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+      loop:
+        - src: /home/dsantos/ca.pem
+          dest: /etc/etcd/
+        - src: /home/dsantos/kubernetes-key.pem
+          dest: /etc/etcd/
+        - src: /home/dsantos/kubernetes.pem
+          dest: /etc/etcd/
+    - name: configure systemd
+      ansible.builtin.shell: |
+        INTERNAL_IP=$(curl -s -H "Metadata-Flavor: Google" \
+          http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip)
+  
+        ETCD_NAME=$(hostname -s)
+        
+        cat <<EOF | sudo tee /etc/systemd/system/etcd.service
+        [Unit]
+        Description=etcd
+        Documentation=https://github.com/coreos
+        
+        [Service]
+        Type=notify
+        ExecStart=/usr/local/bin/etcd \\
+        --name ${ETCD_NAME} \\
+        --cert-file=/etc/etcd/kubernetes.pem \\
+        --key-file=/etc/etcd/kubernetes-key.pem \\
+        --peer-cert-file=/etc/etcd/kubernetes.pem \\
+        --peer-key-file=/etc/etcd/kubernetes-key.pem \\
+        --trusted-ca-file=/etc/etcd/ca.pem \\
+        --peer-trusted-ca-file=/etc/etcd/ca.pem \\
+        --peer-client-cert-auth \\
+        --client-cert-auth \\
+        --initial-advertise-peer-urls https://${INTERNAL_IP}:2380 \\
+        --listen-peer-urls https://${INTERNAL_IP}:2380 \\
+        --listen-client-urls https://${INTERNAL_IP}:2379,https://127.0.0.1:2379 \\
+        --advertise-client-urls https://${INTERNAL_IP}:2379 \\
+        --initial-cluster-token etcd-cluster-0 \\
+        --initial-cluster master-0=https://10.240.0.10:2380,master-1=https://10.240.0.11:2380 \\
+        --initial-cluster-state new \\
+        --data-dir=/var/lib/etcd
+        Restart=on-failure
+        RestartSec=5
+        
+        [Install]
+        WantedBy=multi-user.target
+        EOF
+    - name: configure chmod +x on etcd bin
+      file: dest=/usr/local/bin/etcd mode=a+x
+    - name: reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+    - name: start etcd setvice
+      ansible.builtin.systemd:
+        state: started
+        name: etcd
+    - name: enable etcd service
+      ansible.builtin.systemd:
+        enabled: true
+        name: etcd
+
+
