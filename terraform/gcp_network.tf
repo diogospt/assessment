@@ -56,3 +56,44 @@ resource "google_compute_address" "static-kubernetes" {
   region = "europe-west4"
 }
 
+resource "google_compute_firewall" "kubernetes-allow-health-check" {
+  name = "kubernetes-allow-health-check"
+  network = google_compute_network.kubernetes.name
+  project = var.project_id
+  direction = "INGRESS"
+  source_ranges = ["209.85.152.0/22", "209.85.204.0/22", "35.191.0.0/16"]
+
+  allow {
+    protocol = "tcp"
+  }
+}
+
+resource "google_compute_target_pool" "kubernetes-target-pool" {
+  name = "kubernetes-target-pool"
+
+  instances = [
+    "europe-west4-a/master-0",
+    "europe-west4-b/master-1",
+  ]
+
+  health_checks = [
+    google_compute_http_health_check.kubernetes-health-check.name,
+  ]
+}
+
+resource "google_compute_http_health_check" "kubernetes-health-check" {
+  description = "Kubernetes Health Check"
+  name = "kubernetes-health-check"
+  host = "kubernetes.default.svc.cluster.local"
+  request_path = "/healthz"
+}
+
+resource "google_compute_forwarding_rule" "kubernetes-forwarding-rule" {
+  ip_address = google_compute_address.static-kubernetes.address
+  port_range = "6443"
+  project = var.project_id
+  name = "kubernetes-forwarding-rule"
+  region = "europe-west4"
+  target = google_compute_target_pool.kubernetes-target-pool.id
+}
+

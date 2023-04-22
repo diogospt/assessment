@@ -25,11 +25,6 @@ resource "google_compute_instance" "master-0" {
     scopes =  ["compute-rw" ,"storage-ro" ,"service-management", "service-control", "logging-write", "monitoring"]
   }
 
-  metadata_startup_script = <<SCRIPT
-    apt-get update
-    apt-get upgrade -y
-    apt-get install ansible wget git -y
-    SCRIPT
 }
 
 resource "google_compute_address" "address-master-0" {

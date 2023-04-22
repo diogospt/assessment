@@ -1,0 +1,117 @@
+---
+- name: Configure Kubernetes Worker Nodes
+  hosts: localhost
+  connection: local
+  become: yes
+  tasks:
+    - name: Install package socat
+      ansible.builtin.apt:
+        name: socat
+        update_cache: true
+        state: latest
+    - name: Install package conntrack
+      ansible.builtin.apt:
+        name: conntrack
+        update_cache: true
+        state: latest
+    - name: Install package ipset
+      ansible.builtin.apt:
+        name: ipset
+        update_cache: true
+        state: latest
+    - name: Disable SWAP since kubernetes can't work with swap enabled (1/2)
+      shell: |
+        swapoff -a
+    - name: Disable SWAP in fstab since kubernetes can't work with swap enabled (2/2)
+      replace:
+        path: /etc/fstab
+        regexp: '^([^#].*?\sswap\s+sw\s+.*)$'
+        replace: '# \1'
+    - name: Download crictl binaries
+      ansible.builtin.get_url:
+        url: https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.27.0/crictl-v1.27.0-linux-amd64.tar.gz
+        dest: /home/dsantos/
+        mode: '0777'
+    - name: Download runc
+      ansible.builtin.get_url:
+        url: https://github.com/opencontainers/runc/releases/download/v1.1.6/runc.amd64
+        dest: /home/dsantos/
+        mode: '0777'
+    - name: Download cni plugin
+      ansible.builtin.get_url:
+        url: https://github.com/containernetworking/plugins/releases/download/v1.2.0/cni-plugins-linux-amd64-v1.2.0.tgz
+        dest: /home/dsantos/
+        mode: '0777'
+    - name: Download containerd
+      ansible.builtin.get_url:
+        url: https://github.com/containerd/containerd/releases/download/v1.7.0/containerd-1.7.0-linux-amd64.tar.gz
+        dest: /home/dsantos/
+        mode: '0777'
+    - name: Download Kubectl
+      ansible.builtin.get_url:
+        url: https://storage.googleapis.com/kubernetes-release/release/v1.27.0/bin/linux/amd64/kubectl
+        dest: /home/dsantos/
+        mode: '0777'
+    - name: Download kube proxy
+      ansible.builtin.get_url:
+        url: https://storage.googleapis.com/kubernetes-release/release/v1.27.0/bin/linux/amd64/kube-proxy
+        dest: /home/dsantos/
+        mode: '0777'
+    - name: Download kubelet
+      ansible.builtin.get_url:
+        url: https://storage.googleapis.com/kubernetes-release/release/v1.27.0/bin/linux/amd64/kubelet
+        dest: /home/dsantos/
+        mode: '0777'
+    - name: create directory if they don't exist
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: 0775
+      loop:
+        - /etc/cni/net.d
+        - /opt/cni/bin
+        - /var/lib/kubelet
+        - /var/lib/kube-proxy
+        - /var/lib/kubernetes
+        - /var/run/kubernetes
+        - /var/lib/containerd
+
+    - name: create /home/dsantos/containerd folder
+      file:
+        path: /home/dsantos/containerd
+        state: directory
+        owner: root
+        group: root
+        mode: 0777
+
+    - name: unarchive crictl-v1.27.0-linux-amd64.tar.gz
+      ansible.builtin.unarchive:
+        src: /home/dsantos/crictl-v1.27.0-linux-amd64.tar.gz
+        dest: /home/dsantos/
+    - name: unarchive containerd-1.7.0-linux-amd64.tar.gz
+      ansible.builtin.unarchive:
+        src: /home/dsantos/containerd-1.7.0-linux-amd64.tar.gz
+        dest: /home/dsantos/containerd/
+    - name: unarchive cni-plugins-linux-amd64-v1.2.0.tgz
+      ansible.builtin.unarchive:
+        src: /home/dsantos/cni-plugins-linux-amd64-v1.2.0.tgz
+        dest: /home/dsantos/
+    - name: run chmod +x on
+      file: dest=/home/dsantos/crictl mode=a+x
+
+    - name: run chmod +x on kubectl
+      file: dest=/home/dsantos/kubectl mode=a+x
+
+    - name: run chmod +x on kubelet
+      file: dest=/home/dsantos/kubelet mode=a+x
+
+    - name: run chmod +x on kube-proxy
+      file: dest=/home/dsantos/kube-proxy mode=a+x
+
+    - name: Run worker binaries config
+      ansible.builtin.shell: |
+        mv crictl kubectl kube-proxy kubelet runc /usr/local/bin/
+        mv /home/dsantos/containerd/bin/* /bin/
+        
