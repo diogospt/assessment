@@ -1,6 +1,6 @@
 #!/bin/bash
 
-gcloud config set project infrastructure-384422
+gcloud config set project infrastructure-384423
 # Provisioning Kubelet Client Certificates
 
 for instance in worker-0 worker-1; do
