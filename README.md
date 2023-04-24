@@ -3,7 +3,7 @@
 kubeconfiguration for exercise 1, please configure the path to the admin.pem and admin-key.pem
 
 kubeconfig:
-
+```
 apiVersion: v1
 clusters:
 - cluster:
@@ -23,7 +23,7 @@ users:
   user:
     client-certificate: assessment/bash_scripts/files/admin.pem
     client-key: assessment/bash_scripts/files/admin-key.pem
-    
+```    
     
 
-    
+ 
